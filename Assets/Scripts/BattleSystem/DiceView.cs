@@ -1,42 +1,50 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
-public class DiceView : MonoBehaviour
+using UnityEngine.EventSystems;
+
+public class DiceView : MonoBehaviour, IPointerClickHandler
 {
     [Header("UI Referenzen")]
-    public Image background; // Hintergrund (Farbe)
-    public Image icon;       // Symbol (Sonne/Mond/Stern)
+    public Image background;
+    public Image icon;
 
     [Header("Symbol Sprites")]
     public Sprite sunSprite;
     public Sprite moonSprite;
     public Sprite starSprite;
 
-    // Wird vom BattleSystem aufgerufen
-    public void SetDice(Dice dice)
+    private Dice dice;
+    private BattleSystem battleSystem;
+
+    public void SetDice(Dice dice, BattleSystem system)
+    {
+        this.dice = dice;
+        this.battleSystem = system;
+
+        UpdateView();
+    }
+
+    public void UpdateView()
     {
         SetColor(dice.color);
         SetSymbol(dice.currentSymbol);
+    }
 
-        Debug.Log("SetDice aufgerufen: " + dice.color + " " + dice.currentSymbol +
-                  " → Background = " + (background.sprite != null) +
-                  " Icon = " + (icon.sprite != null));
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        Debug.Log("Würfel geklickt: " + dice.color);
+
+        battleSystem.RerollDice(dice);
+        UpdateView();
     }
 
     void SetColor(DiceColor color)
     {
         switch (color)
         {
-            case DiceColor.Red:
-                background.color = Color.red;
-                break;
-
-            case DiceColor.Green:
-                background.color = Color.green;
-                break;
-
-            case DiceColor.Blue:
-                background.color = Color.blue;
-                break;
+            case DiceColor.Red: background.color = Color.red; break;
+            case DiceColor.Green: background.color = Color.green; break;
+            case DiceColor.Blue: background.color = Color.blue; break;
         }
     }
 
@@ -44,17 +52,9 @@ public class DiceView : MonoBehaviour
     {
         switch (symbol)
         {
-            case DiceSymbol.A:
-                icon.sprite = sunSprite;
-                break;
-
-            case DiceSymbol.B:
-                icon.sprite = moonSprite;
-                break;
-
-            case DiceSymbol.C:
-                icon.sprite = starSprite;
-                break;
+            case DiceSymbol.A: icon.sprite = sunSprite; break;
+            case DiceSymbol.B: icon.sprite = moonSprite; break;
+            case DiceSymbol.C: icon.sprite = starSprite; break;
         }
     }
 }

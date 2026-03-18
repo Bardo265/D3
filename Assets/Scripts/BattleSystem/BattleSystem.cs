@@ -10,17 +10,27 @@ public class BattleSystem : MonoBehaviour
     public int greenDice = 2;
     public int blueDice = 2;
 
+    public GameObject choiceButtons;
+
     public GameObject dicePrefab;
     public Transform diceParent;
+
+    public Transform redParent;
+    public Transform greenParent;
+    public Transform blueParent;
 
     private List<DiceView> diceViews = new List<DiceView>();
 
 
     void Start()
     {
+
+        choiceButtons.SetActive(false);
+
         CreateDice();
         RollAllDice();
         DisplayDice();
+
     }
 
     void Update()
@@ -67,8 +77,24 @@ public class BattleSystem : MonoBehaviour
         }
 
         DisplayDice();
+
+        choiceButtons.SetActive(true);
     }
 
+    public void ChooseA()
+    {
+        EvaluateRoll(DiceSymbol.A);
+    }
+
+    public void ChooseB()
+    {
+        EvaluateRoll(DiceSymbol.B);
+    }
+
+    public void ChooseC()
+    {
+        EvaluateRoll(DiceSymbol.C);
+    }
 
 
 
@@ -78,51 +104,78 @@ public class BattleSystem : MonoBehaviour
         int defense = 0;
         int energy = 0;
 
-        Debug.Log("Gewählt: " + chosenSymbol);
-        Debug.Log("---- Auswertung ----");
-
         foreach (var dice in diceList)
         {
             if (dice.currentSymbol == chosenSymbol)
             {
                 switch (dice.color)
                 {
-                    case DiceColor.Red:
-                        attack++;
-                        break;
-
-                    case DiceColor.Green:
-                        defense++;
-                        break;
-
-                    case DiceColor.Blue:
-                        energy++;
-                        break;
+                    case DiceColor.Red: attack++; break;
+                    case DiceColor.Green: defense++; break;
+                    case DiceColor.Blue: energy++; break;
                 }
             }
         }
 
+        Debug.Log("Gewählt: " + chosenSymbol);
         Debug.Log("Angriff: " + attack);
         Debug.Log("Verteidigung: " + defense);
         Debug.Log("Energie: " + energy);
+
+        choiceButtons.SetActive(false);
     }
 
     void DisplayDice()
     {
-        foreach (Transform child in diceParent)
-            Destroy(child.gameObject);
+        // Alte löschen
+        ClearContainer(redParent);
+        ClearContainer(greenParent);
+        ClearContainer(blueParent);
 
         diceViews.Clear();
 
         foreach (var dice in diceList)
         {
-            GameObject obj = Instantiate(dicePrefab, diceParent);
-            DiceView view = obj.GetComponent<DiceView>();
-            view.SetDice(dice);
-            diceViews.Add(view);
+            Transform parent = GetParentForColor(dice.color);
 
-            Debug.Log("Würfel erzeugt: " + dice.color + " " + dice.currentSymbol);
+            GameObject obj = Instantiate(dicePrefab, parent);
+            DiceView view = obj.GetComponent<DiceView>();
+
+            view.SetDice(dice, this);
+            diceViews.Add(view);
         }
+    }
+
+    void ClearContainer(Transform parent)
+    {
+        foreach (Transform child in parent)
+        {
+            Destroy(child.gameObject);
+        }
+    }
+
+    Transform GetParentForColor(DiceColor color)
+    {
+        switch (color)
+        {
+            case DiceColor.Red:
+                return redParent;
+
+            case DiceColor.Green:
+                return greenParent;
+
+            case DiceColor.Blue:
+                return blueParent;
+        }
+
+        return null;
+    }
+
+
+    public void RerollDice(Dice dice)
+    {
+        dice.Roll();
+        Debug.Log("Neu gewürfelt: " + dice.color + " → " + dice.currentSymbol);
     }
 
 }

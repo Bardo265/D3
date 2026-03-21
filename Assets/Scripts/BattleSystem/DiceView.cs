@@ -15,6 +15,7 @@ public class DiceView : MonoBehaviour, IPointerClickHandler
 
     private Dice dice;
     private BattleSystem battleSystem;
+    private Color originalBackgroundColor;
 
     public void SetDice(Dice dice, BattleSystem system)
     {
@@ -42,10 +43,12 @@ public class DiceView : MonoBehaviour, IPointerClickHandler
     {
         switch (color)
         {
-            case DiceColor.Red: background.color = Color.red; break;
-            case DiceColor.Green: background.color = Color.green; break;
-            case DiceColor.Blue: background.color = Color.blue; break;
+            case DiceColor.Red: originalBackgroundColor = Color.red; break;
+            case DiceColor.Green: originalBackgroundColor = Color.green; break;
+            case DiceColor.Blue: originalBackgroundColor = Color.blue; break;
         }
+
+        background.color = originalBackgroundColor;
     }
 
     void SetSymbol(DiceSymbol symbol)
@@ -55,6 +58,24 @@ public class DiceView : MonoBehaviour, IPointerClickHandler
             case DiceSymbol.A: icon.sprite = sunSprite; break;
             case DiceSymbol.B: icon.sprite = moonSprite; break;
             case DiceSymbol.C: icon.sprite = starSprite; break;
+        }
+    }
+
+    public void Highlight(DiceSymbol chosenSymbol)
+    {
+        if (dice.currentSymbol == chosenSymbol)
+        {
+            // Hervorheben → leicht größer, volle Farbe
+            background.color = originalBackgroundColor;
+            icon.color = Color.white;
+            transform.localScale = Vector3.one * 1.2f;
+        }
+        else
+        {
+            // Abdunkeln → aber Farbe bleibt sichtbar!
+            background.color = originalBackgroundColor * 0.4f;
+            icon.color = new Color(1f, 1f, 1f, 0.5f); // halbtransparent
+            transform.localScale = Vector3.one;
         }
     }
 }

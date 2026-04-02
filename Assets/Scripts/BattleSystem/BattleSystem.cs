@@ -1,7 +1,9 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class BattleSystem : MonoBehaviour
 {
@@ -12,20 +14,27 @@ public class BattleSystem : MonoBehaviour
     public int greenDice = 2;
     public int blueDice = 2;
 
+    private HeroClass currentSelectedClass;
+
     private int attack;
     private int defense;
     private int energy;
 
     public GameObject endTurnButton;
-
+    public GameObject abilityButton;
     public GameObject choiceButtons;
+
+    public GameObject classSelectionPanel;
+    public GameObject abilitySelectionPanel;
+    public GameObject enemyPanel;
+    public GameObject startFightButton;
+    public GameObject statsPanel;
 
     public GameObject dicePrefab;
     public Transform diceParent;
 
     public GameObject dicePanel;
     public GameObject combatPanel;
-    public GameObject enemyPanel;
 
     public Transform redParent;
     public Transform greenParent;
@@ -44,11 +53,16 @@ public class BattleSystem : MonoBehaviour
     public GameObject endRoundButton;
 
     private Enemy currentEnemy;
+    public TMP_Dropdown classDropdown;
 
     private int currentHeroIndex = 0;
     private int totalHeroes = 3;
 
     public List<Hero> heroes = new List<Hero>();
+
+
+    // 👉 NEU:
+    public int currentSelectionHeroIndex = 0;
     public TMP_Text heroHPText;
 
     private bool isEnemyPhase = false;
@@ -60,26 +74,66 @@ public class BattleSystem : MonoBehaviour
     public GameObject heroPanel;
 
     public TMP_Text[] heroHPTexts;
+    public TMP_Text[] heroResourceTexts;
+    public Button[] abilityButtons;
+
+
+    public TMP_Text[] abilityTexts; // 3 Texte
+    private List<Ability> selectedAbilities = new List<Ability>();
+
+    public UnityEngine.UI.Image[] abilityButtonImages;
+    public Color normalColor = Color.white;
+    public Color selectedColor = Color.green;
+
+    private int selectingHeroIndex = 0;
+
 
 
     void Start()
     {
-        // UI initial ausblenden
-        choiceButtons.SetActive(false);
-        endRoundButton.SetActive(false);
+        SetState("ClassSelection");
+        currentSelectionHeroIndex = 0;
+        heroes.Clear();
+    }
 
-        // Gegner erstmal verstecken
-        enemyPanel.SetActive(false);
+    public void StartGameAfterSelection()
+    {
+        Debug.Log("Spiel startet nach Klassenauswahl!");
 
-        CreateHeroes();
-
-        // Würfel erzeugen
         CreateDice();
-
-        // Erste Runde starten
         StartHeroTurn();
     }
 
+
+    public void OnClassDropdownChanged(int index)
+    {
+        currentSelectedClass = (HeroClass)index;
+    }
+
+
+    public Enemy GetCurrentEnemy()
+    {
+        return currentEnemy;
+    }
+
+    public void OnClassSelected(int index)
+    {
+        Hero hero = new Hero();
+
+        hero.heroClass = (HeroClass)index;
+
+        SetupHeroByClass(hero);
+        SetupAbilities(hero);
+
+        heroes.Add(hero);
+
+        currentSelectionHeroIndex++;
+
+        Debug.Log("Held erstellt: " + hero.heroClass);
+
+        // 👉 Nächster Schritt
+        SetState("AbilitySelection");
+    }
 
     void CreateDice()
     {
@@ -123,6 +177,582 @@ public class BattleSystem : MonoBehaviour
     public void ChooseC()
     {
         EvaluateRoll(DiceSymbol.C);
+    }
+
+    public void SetupHeroByClass(Hero hero)
+    {
+        switch (hero.heroClass)
+        {
+            case HeroClass.Krieger:
+                hero.redDice = 4;
+                hero.greenDice = 2;
+                hero.blueDice = 1;
+
+                // keine Resource
+                hero.maxResource = 0;
+                hero.resource = 0;
+                break;
+
+            case HeroClass.Magier:
+                hero.redDice = 1;
+                hero.greenDice = 2;
+                hero.blueDice = 4;
+
+                // Mana (einmalig, keine Regeneration)
+                hero.maxResource = 10;
+                hero.resource = 10;
+                break;
+
+            case HeroClass.Moench:
+                hero.redDice = 2;
+                hero.greenDice = 3;
+                hero.blueDice = 2;
+
+                // Heiligkeit
+                hero.maxResource = 10;
+                hero.resource = 5; // Startwert
+
+                break;
+
+            case HeroClass.Assassine:
+                hero.redDice = 3;
+                hero.greenDice = 1;
+                hero.blueDice = 3;
+
+                // Machtpunkte (reset jede Runde)
+                hero.maxResource = 5;
+                hero.resource = 5;
+                break;
+
+            case HeroClass.Jaeger:
+                hero.redDice = 3;
+                hero.greenDice = 2;
+                hero.blueDice = 2;
+
+                // Munition (bleibt erhalten)
+                hero.maxResource = 6;
+                hero.resource = 6;
+                break;
+
+            case HeroClass.Lichtbringer:
+                hero.redDice = 1;
+                hero.greenDice = 4;
+                hero.blueDice = 2;
+
+                // Lichtpunkte (werden erzeugt/verbraucht)
+                hero.maxResource = 5;
+                hero.resource = 0;
+                break;
+        }
+    }
+
+    public void SetupAbilities(Hero hero)
+    {
+        hero.allAbilities.Clear();
+
+        switch (hero.heroClass)
+        {
+            case HeroClass.Krieger:
+
+                hero.allAbilities.Clear();
+
+                // 🛡️ Schild
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Schild",
+
+                    energyCost = 1,
+
+                    bonusGreenDice = 3, // passiv
+
+                    effect = (bs, h) =>
+                    {
+                        bs.AddDefense(2);
+                        Debug.Log("Schild: +2 Verteidigung");
+                    }
+                });
+
+                // 🎓 Lehrstunde
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Lehrstunde",
+
+                    energyCost = 1,
+
+                    bonusBlueDice = 3, // passiv
+
+                    effect = (bs, h) =>
+                    {
+                        bs.AddAttack(3);
+                        Debug.Log("Lehrstunde: +3 Angriff");
+                    }
+                });
+
+                // ⚔️ Gute Technik
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Gute Technik",
+
+                    energyCost = 1,
+
+                    bonusRedDice = 3, // passiv
+
+                    effect = (bs, h) =>
+                    {
+                        int removable = Mathf.Min(5, bs.GetAttack());
+
+                        if (removable <= 0)
+                        {
+                            Debug.Log("Keine Angriffspunkte zum Umwandeln!");
+                            return;
+                        }
+
+                        // 💀 1 Leben als Kosten
+                        h.currentHP -= 1;
+
+                        if (h.currentHP < 0)
+                            h.currentHP = 0;
+
+                        bs.AddAttack(-removable);
+                        bs.AddDefense(removable * 2);
+
+                        Debug.Log("Gute Technik: -" + removable + " Angriff, +" + (removable * 2) + " Verteidigung, -1 HP");
+
+                        bs.UpdateHeroUI(); // 👉 wichtig für Anzeige
+                    }
+                });
+
+                break;
+
+            case HeroClass.Magier:
+
+                hero.allAbilities.Clear();
+
+                // 🔵 Energiefluss
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Energiefluss",
+
+                    energyCost = 2,
+
+                    effect = (bs, h) =>
+                    {
+                        h.resource += 1;
+                        h.resource = Mathf.Clamp(h.resource, 0, h.maxResource);
+
+                        Debug.Log("Energiefluss: +1 Mana");
+
+                        bs.UpdateHeroUI();
+                    }
+                });
+
+                // 🔥 Feuerstrahl
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Feuerstrahl",
+
+                    energyCost = 1,
+                    resourceCost = 1,
+
+                    bonusRedDice = 3,
+
+                    effect = (bs, h) =>
+                    {
+                        bs.AddAttack(4);
+                        Debug.Log("Feuerstrahl: +4 Angriff");
+                    }
+                });
+
+                // ❄️ Eisrüstung
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Eisrüstung",
+
+                    energyCost = 0,
+                    resourceCost = 1,
+
+                    bonusGreenDice = 2,
+                    bonusBlueDice = 1,
+
+                    effect = (bs, h) =>
+                    {
+                        bs.AddDefense(3);
+                        Debug.Log("Eisrüstung: +3 Verteidigung");
+                    }
+                });
+
+                break;
+
+            case HeroClass.Moench:
+
+                hero.allAbilities.Clear();
+
+                // ☀️ Sonnenschlag
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Sonnenschlag",
+
+                    energyCost = 1,
+                    resourceCost = 1,
+
+                    bonusBlueDice = 2,
+
+                    effect = (bs, h) =>
+                    {
+                        bs.AddAttack(3);
+                        Debug.Log("Sonnenschlag: +3 Angriff");
+                    }
+                });
+
+                // ✨ Gott sei mit dir
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Gott sei mit dir",
+
+                    energyCost = 0,
+                    resourceCost = 1,
+
+                    bonusGreenDice = 1,
+                    bonusBlueDice = 1,
+
+                    effect = (bs, h) =>
+                    {
+                        // 👉 aktuellen Helden heilen (einfachste Version)
+                        h.currentHP += 3;
+                        h.currentHP = Mathf.Clamp(h.currentHP, 0, h.maxHP);
+
+                        Debug.Log("Heilung: +3 HP");
+
+                        bs.UpdateHeroUI();
+                    }
+                });
+
+                // 👊 Faustkampf
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Faustkampf",
+
+                    energyCost = 2,
+                    resourceCost = 3,
+
+                    // ⚠️ dynamisch → kein fixer Dice Bonus
+
+                    effect = (bs, h) =>
+                    {
+                        int enemyCount = bs.GetEnemyCount(); // 👉 brauchen wir gleich
+
+                        int attackGain = enemyCount * 2;
+                        int defenseGain = enemyCount * 1;
+
+                        bs.AddAttack(attackGain);
+                        bs.AddDefense(defenseGain);
+
+                        Debug.Log("Faustkampf: +" + attackGain + " Angriff, +" + defenseGain + " Schild");
+                    }
+                });
+
+                break;
+            case HeroClass.Assassine:
+
+                hero.allAbilities.Clear();
+
+                // 🗡️ Messerwurf
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Messerwurf",
+
+                    energyCost = 1,
+
+                    bonusRedDice = 2,
+                    bonusBlueDice = 1,
+
+                    effect = (bs, h) =>
+                    {
+                        bs.AddAttack(2);
+                        Debug.Log("Messerwurf: +2 Angriff");
+                    }
+                });
+
+                // 💀 Todesstoß
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Todesstoß",
+
+                    energyCost = 2,
+                    resourceCost = 3,
+
+                    bonusRedDice = 2,
+
+                    effect = (bs, h) =>
+                    {
+                        Enemy enemy = bs.GetCurrentEnemy();
+
+                        if (enemy == null)
+                        {
+                            Debug.Log("Kein Gegner vorhanden!");
+                            return;
+                        }
+
+                        if (enemy.GetCurrentHP() <= 7)
+                        {
+                            enemy.Die(); // 👉 sofort töten
+                            Debug.Log("Todesstoß: Gegner eliminiert!");
+                        }
+                        else
+                        {
+                            Debug.Log("Gegner hat zu viel Leben für Todesstoß!");
+                        }
+                    }
+                });
+
+                // 🚪 Erstes Tor
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Erstes Tor",
+
+                    energyCost = 1,
+                    resourceCost = 2,
+
+                    bonusRedDice = 1,
+                    bonusGreenDice = 1,
+                    bonusBlueDice = 1,
+
+                    effect = (bs, h) =>
+                    {
+                        bs.AddAttack(3);
+                        bs.AddDefense(1);
+
+                        // 👇 wichtig für spätere Combo!
+                        h.usedFirstGateThisTurn = true;
+
+                        Debug.Log("Erstes Tor aktiviert!");
+                    }
+                });
+
+                break;
+            case HeroClass.Jaeger:
+
+                hero.allAbilities.Clear();
+
+                // 🎯 Schnellfeuer
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Schnellfeuer",
+
+                    energyCost = 1,
+                    resourceCost = 1, // Munition
+
+                    bonusRedDice = 2,
+
+                    effect = (bs, h) =>
+                    {
+                        bs.AddAttack(3);
+                        Debug.Log("Schnellfeuer: +3 Angriff");
+                    }
+                });
+
+                // 🧘 Konzentration
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Konzentration",
+
+                    energyCost = 2,
+
+                    bonusBlueDice = 3,
+
+                    effect = (bs, h) =>
+                    {
+                        bs.ReducePendingDamage(2);
+
+                        Debug.Log("Konzentration: Gegner-Angriff -2");
+                    }
+                });
+
+                // 🏹 Drei Pfeile
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Drei Pfeile",
+
+                    energyCost = 1,
+                    resourceCost = 2,
+
+                    bonusGreenDice = 1,
+                    bonusRedDice = 1, // pro Gegner wird später erweitert
+
+                    effect = (bs, h) =>
+                    {
+                        int enemyCount = bs.GetEnemyCount();
+
+                        int totalDamage = enemyCount * 2;
+
+                        bs.AddAttack(totalDamage);
+
+                        Debug.Log("Drei Pfeile: +" + totalDamage + " Angriff (aufgeteilt auf Gegner)");
+                    }
+                });
+
+                break;
+            case HeroClass.Lichtbringer:
+
+                hero.allAbilities.Clear();
+
+                // 💡 Lichtstrahl
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Lichtstrahl",
+
+                    energyCost = 1,
+
+                    bonusBlueDice = 3,
+
+                    effect = (bs, h) =>
+                    {
+                        h.resource += 1; // Lichtpunkt erhalten
+
+                        int enemies = bs.GetEnemyCount();
+
+                        int shieldGain = 4 - enemies;
+                        if (shieldGain < 0) shieldGain = 0;
+
+                        bs.AddDefense(shieldGain);
+
+                        Debug.Log("Lichtstrahl: +" + shieldGain + " Schild, +1 Lichtpunkt");
+
+                        bs.UpdateHeroUI();
+                    }
+                });
+
+                // 🌟 Leuchten
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Leuchten",
+
+                    energyCost = 2,
+
+                    bonusRedDice = 3,
+
+                    effect = (bs, h) =>
+                    {
+                        if (h.resource <= 0)
+                        {
+                            Debug.Log("Nicht genug Lichtpunkte!");
+                            return;
+                        }
+
+                        h.resource -= 1;
+
+                        h.currentHP = h.maxHP;
+
+                        Debug.Log("Leuchten: Held vollständig geheilt!");
+
+                        bs.UpdateHeroUI();
+                    }
+                });
+
+                // ⚡ Blendendes Licht
+                hero.allAbilities.Add(new Ability
+                {
+                    name = "Blendendes Licht",
+
+                    energyCost = 1,
+
+                    bonusBlueDice = 3,
+
+                    effect = (bs, h) =>
+                    {
+                        if (h.resource < 2)
+                        {
+                            Debug.Log("Nicht genug Lichtpunkte!");
+                            return;
+                        }
+
+                        h.resource -= 2;
+
+                        bs.AddAttack(2);
+                        bs.AddDefense(2);
+
+                        Debug.Log("Blendendes Licht: +2 Angriff, +2 Schild");
+
+                        bs.UpdateHeroUI();
+                    }
+                });
+
+                break;
+        }
+
+        // 👉 Standard: erste 2 ausgerüstet
+        hero.equippedAbilities = hero.allAbilities.Take(2).ToList();
+    }
+
+    void ShowAbilitySelection()
+    {
+
+        classSelectionPanel.SetActive(false);
+        abilitySelectionPanel.SetActive(true);
+
+        UpdateAbilityButtons();
+        Hero hero = heroes[currentSelectionHeroIndex];
+
+        Debug.Log("Wähle Fähigkeiten für: " + hero.name);
+
+        for (int i = 0; i < hero.allAbilities.Count && i < abilityTexts.Length; i++)
+        {
+            abilityTexts[i].text = hero.allAbilities[i].name;
+        }
+
+        selectedAbilities.Clear();
+
+        // Farben resetten
+        for (int i = 0; i < abilityButtonImages.Length; i++)
+        {
+            abilityButtonImages[i].color = normalColor;
+        }
+    }
+
+    public void SelectAbility(int index)
+    {
+        Hero hero = heroes[currentSelectionHeroIndex];
+
+        if (index < 0 || index >= hero.allAbilities.Count)
+            return;
+
+        Ability ability = hero.allAbilities[index];
+
+        if (!selectedAbilities.Contains(ability))
+        {
+            if (selectedAbilities.Count >= 2)
+                return;
+
+            selectedAbilities.Add(ability);
+        }
+        else
+        {
+            selectedAbilities.Remove(ability);
+        }
+
+        // 👉 WICHTIG: UI sofort aktualisieren
+        UpdateAbilityButtons();
+    }
+
+    public void ConfirmAbilities()
+    {
+        Hero hero = heroes[currentSelectionHeroIndex];
+
+        hero.equippedAbilities = new List<Ability>(selectedAbilities);
+
+        selectedAbilities.Clear();
+
+        currentSelectionHeroIndex++;
+
+        if (currentSelectionHeroIndex < 3)
+        {
+            SetState("ClassSelection"); // nächster Held
+        }
+        else
+        {
+            currentHeroIndex = 0; // 🔥 GANZ WICHTIG
+            StartHeroTurn();
+        }
     }
 
 
@@ -215,11 +845,7 @@ public class BattleSystem : MonoBehaviour
         attackText.text = "Angriff: " + attack;
         defenseText.text = "Verteidigung: " + defense;
         energyText.text = "Energie: " + energy;
-
-        dicePanel.SetActive(false);
-        combatPanel.SetActive(true);
-
-        enemyPanel.SetActive(false); // 👈 WICHTIG
+        SetState("Combat");
     }
 
     void SpawnEnemy()
@@ -268,56 +894,125 @@ public class BattleSystem : MonoBehaviour
         energyText.text = "Energie: " + energy;
     }
 
-    public void UseRandomAbility()
+
+    public void UseAbility(int index)
     {
-        if (energy < 2)
+        Hero hero = GetCurrentHero();
+
+        if (index >= hero.equippedAbilities.Count)
+            return;
+
+        Ability ability = hero.equippedAbilities[index];
+
+        // Kosten prüfen
+        if (energy < ability.energyCost)
         {
             Debug.Log("Nicht genug Energie!");
             return;
         }
 
-        energy -= 2;
-
-        int roll = Random.Range(0, 2); // 0 oder 1
-
-        if (roll == 0)
+        if (hero.resource < ability.resourceCost)
         {
-            attack += 3;
-            Debug.Log("Fähigkeit: +3 Angriff!");
+            Debug.Log("Nicht genug Resource!");
+            return;
         }
-        else
-        {
-            defense += 3;
-            Debug.Log("Fähigkeit: +3 Verteidigung!");
-        }
+
+        // Kosten abziehen
+        energy -= ability.energyCost;
+        hero.resource -= ability.resourceCost;
+
+        // Effekt ausführen
+        ability.effect?.Invoke(this, hero);
 
         UpdatePlayerUI();
+        UpdateHeroUI();
     }
 
 
     void StartHeroTurn()
     {
-        endRoundButton.SetActive(false);
-        heroPanel.SetActive(false);
+        Hero hero = GetCurrentHero();
 
-        // 👇 Gegner ausblenden
-        enemyPanel.SetActive(false);
+        // ✅ 1. RESET (GANZ WICHTIG!)
+        redDice = 0;
+        greenDice = 0;
+        blueDice = 0;
 
-        energy = 0;
+        // ✅ 2. BASIS vom Helden
+        redDice = hero.redDice;
+        greenDice = hero.greenDice;
+        blueDice = hero.blueDice;
 
-        if (currentHeroIndex == 0)
+        // ✅ 3. Klassenboni
+        if (hero.heroClass == HeroClass.Magier)
         {
-            // Angriff & Defense bleiben bestehen
+            if (hero.resource == 0)
+            {
+                blueDice += 1;
+                Debug.Log("Magier Bonuswürfel!");
+            }
         }
 
-        Debug.Log("Held " + (currentHeroIndex + 1) + " ist am Zug");
+        if (hero.heroClass == HeroClass.Moench)
+        {
+            if (hero.resource >= 4 && hero.resource <= 6)
+            {
+                greenDice += 1;
+            }
+        }
 
-        dicePanel.SetActive(true);
-        combatPanel.SetActive(false);
+        if (hero.heroClass == HeroClass.Assassine)
+        {
+            hero.resource = hero.maxResource;
+        }
 
-        RollAllDice();
-        UpdateHeroUI();
+        // ✅ 4. Fähigkeiten
+        foreach (var ability in hero.equippedAbilities)
+        {
+            redDice += ability.bonusRedDice;
+            greenDice += ability.bonusGreenDice;
+            blueDice += ability.bonusBlueDice;
+        }
+
+        // ✅ 5. Ressourcen-Logik (unabhängig)
+        if (hero.heroClass == HeroClass.Moench)
+        {
+            int gain = Random.Range(1, 4);
+            hero.resource += gain;
+            hero.resource = Mathf.Clamp(hero.resource, 0, hero.maxResource);
+        }
+
+        hero.usedFirstGateThisTurn = false;
+        energy = 0;
+
+        Debug.Log($"FINAL DICE: R={redDice}, G={greenDice}, B={blueDice}");
+
+        // 👉 STATE STARTET DICE
+        SetState("Dice");
     }
+    public int GetEnemyCount()
+    {
+        // aktuell nur 1 Gegner
+        return currentEnemy != null ? 1 : 0;
+    }
+
+    public int GetAttack()
+    {
+        return attack;
+    }
+
+    public void AddAttack(int amount)
+    {
+        attack += amount;
+        UpdatePlayerUI();
+    }
+
+    public void AddDefense(int amount)
+    {
+        defense += amount;
+        UpdatePlayerUI();
+    }
+
 
     public void EndTurn()
     {
@@ -333,25 +1028,40 @@ public class BattleSystem : MonoBehaviour
         }
     }
 
+    public int GetPendingDamage()
+    {
+        return pendingDamage;
+    }
+
+    public void ReducePendingDamage(int amount)
+    {
+        pendingDamage -= amount;
+
+        if (pendingDamage < 0)
+            pendingDamage = 0;
+
+        UpdateEnemyDamageUI();
+
+        Debug.Log("Schaden reduziert auf: " + pendingDamage);
+    }
+
+
     void StartEnemyPhase()
     {
         isEnemyPhase = true;
-        heroPanel.SetActive(true);
-        endTurnButton.SetActive(false);
-        Debug.Log("👉 Gegnerphase beginnt");
-
-        enemyPanel.SetActive(true);
+        SetState("Enemy");
 
         if (currentEnemy == null)
         {
             SpawnEnemy();
         }
 
-        pendingDamage = Random.Range(3, 7);
+        pendingDamage = Random.Range(7, 14);
 
         UpdateEnemyDamageUI();
 
         enemyPhasePanel.SetActive(true);
+        endTurnButton.SetActive(false);
     }
 
     public void EndRound()
@@ -366,28 +1076,12 @@ public class BattleSystem : MonoBehaviour
         Debug.Log("Neue Runde beginnt!");
 
         currentHeroIndex = 0;
-        enemyPhasePanel.SetActive(false);
-        dicePanel.SetActive(true);
-        combatPanel.SetActive(false);
+        SetState("Dice");
 
         StartHeroTurn();
     }
 
-    void CreateHeroes()
-    {
-        heroes.Clear();
-
-        for (int i = 0; i < 3; i++)
-        {
-            Hero hero = new Hero();
-            hero.name = "Held " + (i + 1);
-            hero.maxHP = 20;
-            hero.currentHP = 20;
-
-            heroes.Add(hero);
-        }
-        UpdateHeroUI();
-    }
+    
 
     Hero GetCurrentHero()
     {
@@ -400,9 +1094,27 @@ public class BattleSystem : MonoBehaviour
         {
             Hero hero = heroes[i];
 
+            // HP anzeigen
             if (heroHPTexts[i] != null)
             {
-                heroHPTexts[i].text = hero.name + "\nHP: " + hero.currentHP + " / " + hero.maxHP;
+                heroHPTexts[i].text =
+                    hero.name + "\nHP: " + hero.currentHP + " / " + hero.maxHP;
+            }
+
+            // Resource anzeigen
+            if (heroResourceTexts[i] != null)
+            {
+                string resName = GetResourceName(hero);
+
+                if (resName == "")
+                {
+                    heroResourceTexts[i].text = ""; // Krieger
+                }
+                else
+                {
+                    heroResourceTexts[i].text =
+                        resName + ": " + hero.resource + " / " + hero.maxResource;
+                }
             }
         }
     }
@@ -450,7 +1162,7 @@ public class BattleSystem : MonoBehaviour
         // Wenn kein Schaden mehr übrig → Phase beenden
         if (pendingDamage <= 0)
         {
-            endTurnButton.SetActive(true);
+            endRoundButton.SetActive(true);
         }
     }
 
@@ -477,7 +1189,7 @@ public class BattleSystem : MonoBehaviour
 
         if (pendingDamage <= 0)
         {
-            endTurnButton.SetActive(true);
+            endRoundButton.SetActive(true);
         }
 
     }
@@ -510,6 +1222,167 @@ public class BattleSystem : MonoBehaviour
         }
     }
 
+    string GetResourceName(Hero hero)
+    {
+        switch (hero.heroClass)
+        {
+            case HeroClass.Magier: return "Mana";
+            case HeroClass.Moench: return "Heiligkeit";
+            case HeroClass.Assassine: return "Macht";
+            case HeroClass.Jaeger: return "Munition";
+            case HeroClass.Lichtbringer: return "Licht";
+            default: return ""; // Krieger hat keine
+        }
+    }
+
+
+    public void SetState(string state)
+    {
+        // ALLES aus
+        abilitySelectionPanel.SetActive(false);
+        dicePanel.SetActive(false);
+        combatPanel.SetActive(false);
+        enemyPanel.SetActive(false);
+        enemyPhasePanel.SetActive(false);
+        heroPanel.SetActive(false);
+        classSelectionPanel.SetActive(false);
+        statsPanel.SetActive(false);
+
+        abilityButton.SetActive(false);
+        endTurnButton.SetActive(false);
+        endRoundButton.SetActive(false);
+        choiceButtons.SetActive(false);
+
+        switch (state)
+        {
+            case "ClassSelection":
+                classSelectionPanel.SetActive(true);
+                break;
+
+            case "AbilitySelection":
+                abilitySelectionPanel.SetActive(true);
+                break;
+
+            case "Dice":
+                dicePanel.SetActive(true);
+
+                CreateDice();   // 👉 Würfel erzeugen
+                RollAllDice();  // 👉 Würfel würfeln
+
+                break;
+
+            case "Combat":
+                combatPanel.SetActive(true);
+                abilityButton.SetActive(true);
+                endTurnButton.SetActive(true);
+                heroPanel.SetActive(true);
+                statsPanel.SetActive(true);
+
+                UpdateHeroUI(); // 👈 DAS FEHLT
+                break;
+
+            case "Enemy":
+                enemyPanel.SetActive(true);
+                enemyPhasePanel.SetActive(true);
+                heroPanel.SetActive(true);
+                statsPanel.SetActive(true);
+
+                endRoundButton.SetActive(false); // 👈 erstmal AUS (korrekt)
+                break;
+        }
+    }
+
+    void ShowClassSelection()
+    {
+        classSelectionPanel.SetActive(true);
+        abilitySelectionPanel.SetActive(false);
+    }
+
+    void ShowStartFightButton()
+    {
+        startFightButton.SetActive(true);
+    }
+
+
+    void HighlightButton(int index, bool active)
+    {
+        if (index < 0 || index >= abilityButtons.Length) return;
+
+        var colors = abilityButtons[index].colors;
+
+        if (active)
+        {
+            colors.normalColor = Color.green;
+        }
+        else
+        {
+            colors.normalColor = Color.white;
+        }
+
+        abilityButtons[index].colors = colors;
+    }
+
+    void UpdateAbilityButtons()
+    {
+        Hero hero = heroes[currentSelectionHeroIndex];
+
+        for (int i = 0; i < abilityButtons.Length; i++)
+        {
+            if (i < hero.allAbilities.Count)
+            {
+                bool selected = selectedAbilities.Contains(hero.allAbilities[i]);
+
+                var colors = abilityButtons[i].colors;
+                colors.normalColor = selected ? Color.green : Color.white;
+                abilityButtons[i].colors = colors;
+
+                abilityButtons[i].gameObject.SetActive(true);
+            }
+            else
+            {
+                abilityButtons[i].gameObject.SetActive(false);
+            }
+        }
+    }
+
+    public void ConfirmClassSelection()
+    {
+        // 👉 Falls Held noch nicht existiert → erstellen
+        if (heroes.Count <= currentSelectionHeroIndex)
+        {
+            heroes.Add(new Hero());
+        }
+
+        Hero hero = heroes[currentSelectionHeroIndex];
+
+        // 👉 Klasse setzen (direkt vom Dropdown!)
+        hero.heroClass = (HeroClass)classDropdown.value;
+
+        // 👉 Name setzen
+        hero.name = hero.heroClass.ToString();
+
+        // 👉 HP je nach Klasse
+        switch (hero.heroClass)
+        {
+            case HeroClass.Krieger: hero.maxHP = 25; break;
+            case HeroClass.Magier: hero.maxHP = 18; break;
+            case HeroClass.Moench: hero.maxHP = 22; break;
+            case HeroClass.Assassine: hero.maxHP = 20; break;
+            case HeroClass.Jaeger: hero.maxHP = 21; break;
+            case HeroClass.Lichtbringer: hero.maxHP = 24; break;
+        }
+
+        hero.currentHP = hero.maxHP;
+
+        // 👉 Setup
+        SetupHeroByClass(hero);
+        SetupAbilities(hero);
+
+        Debug.Log("Held " + currentSelectionHeroIndex + " = " + hero.heroClass);
+
+        SetState("AbilitySelection");
+        ShowAbilitySelection(); // 👈 DAS FEHLT
+    }
 
 
 }

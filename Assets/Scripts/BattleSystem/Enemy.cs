@@ -11,6 +11,8 @@ public class Enemy : MonoBehaviour, IPointerClickHandler
     public int maxHP = 10;
     private int currentHP;
 
+    public int attack;
+
     private BattleSystem battleSystem;
 
     public void Setup(string enemyName, int hp, BattleSystem system)
@@ -40,6 +42,26 @@ public class Enemy : MonoBehaviour, IPointerClickHandler
             Destroy(gameObject);
         }
     }
+
+    public void ReduceAttack(int amount)
+    {
+        attack -= amount;
+
+        if (attack < 0)
+            attack = 0;
+
+        Debug.Log("Gegner Angriff reduziert: " + attack);
+    }
+    public int GetCurrentHP()
+    {
+        return currentHP;
+    }
+
+    public void Die()
+    {
+        Destroy(gameObject);
+    }
+
 
     void UpdateUI()
     {
